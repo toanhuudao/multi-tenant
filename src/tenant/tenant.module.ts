@@ -8,7 +8,6 @@ import { REQUEST } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Connection, createConnection, getConnection } from 'typeorm';
 import { Book } from '../books/book.entity';
-import { DataSource } from 'typeorm';
 
 import { Tenant } from './tenant.entity';
 
@@ -19,36 +18,24 @@ export const TENANT_CONNECTION = 'TENANT_CONNECTION';
   providers: [
     {
       provide: TENANT_CONNECTION,
-      inject: [REQUEST, DataSource],
-      // scope: Scope.REQUEST,
-      useFactory: async (request, dataSource) => {
-        const tenant: Tenant = await dataSource
+      inject: [REQUEST, Connection],
+      scope: Scope.REQUEST,
+      useFactory: async (request, connection) => {
+        const tenant: Tenant = await connection
           .getRepository(Tenant)
           .findOne({ where: { host: request.headers.host } });
-        return new DataSource({
-          name: tenant.name,
-          type: 'mysql',
-          host: 'localhost',
-          port: 3306,
-          username: 'root',
-          password: '123456aA@',
-          database: tenant.name,
-          entities: [Book],
-          synchronize: true,
-        });
+        return getConnection(tenant.name);
       },
     },
   ],
   exports: [TENANT_CONNECTION],
 })
 export class TenantModule {
-  constructor(private readonly connection: DataSource) {}
+  constructor(private readonly connection: Connection) {}
 
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(async (req, res, next) => {
-        console.log(req.headers.host);
-
         const tenant: Tenant = await this.connection
           .getRepository(Tenant)
           .findOne({ where: { host: req.headers.host } });
@@ -70,7 +57,7 @@ export class TenantModule {
             host: 'localhost',
             port: 3306,
             username: 'root',
-            password: '123456aA@',
+            password: 'root',
             database: tenant.name,
             entities: [Book],
             synchronize: true,
